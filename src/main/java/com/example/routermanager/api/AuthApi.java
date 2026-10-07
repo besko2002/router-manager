@@ -47,8 +47,28 @@ public class AuthApi {
     public record Login(String token, String username) {}
     public record PasswordChange(String currentPassword, String newPassword) {}
 
+    public record SetupStatus(boolean setupRequired) {}
+
+    @GetMapping("/setup-status")
+    public ResponseEntity<?> setupStatus(HttpServletRequest request) {
+        ResponseEntity<?> limited = setupLimit(request);
+        if (limited != null) return limited;
+        return ResponseEntity.ok(new SetupStatus(users.count() == 0));
+    }
+
+    private ResponseEntity<?> setupLimit(HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        long retry = limiter.setupRetryAfter(ip);
+        if (retry > 0) return ResponseEntity.status(429).header("Retry-After", Long.toString(retry))
+                .body(ApiError.of(429, "Too Many Requests", "Too many setup requests", request.getRequestURI()));
+        limiter.setupRequest(ip);
+        return null;
+    }
+
     @PostMapping("/setup")
     public synchronized ResponseEntity<?> setup(@RequestBody Credentials credentials, HttpServletRequest request) {
+        ResponseEntity<?> limited = setupLimit(request);
+        if (limited != null) return limited;
         if (users.count() != 0) return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiError.of(409, "Conflict", "Setup has already been completed", request.getRequestURI()));
         AppUser user = create(credentials.username(), credentials.password());

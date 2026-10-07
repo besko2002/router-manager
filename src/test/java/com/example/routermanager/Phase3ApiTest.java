@@ -58,6 +58,11 @@ class Phase3ApiTest {
         mvc.perform(get("/api/devices")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
     }
+    @Test void setupStatusIsPublicWithoutUserDetails() throws Exception {
+        mvc.perform(get("/api/auth/setup-status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.setupRequired").value(false))
+                .andExpect(jsonPath("$.username").doesNotExist());
+    }
     @Test void healthIsPublic() throws Exception { mvc.perform(get("/actuator/health")).andExpect(status().isOk()); }
     @Test void docsArePublic() throws Exception { mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()); }
     @Test void setupIsUnavailableAfterOwnerExists() throws Exception {

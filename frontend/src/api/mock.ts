@@ -18,11 +18,27 @@ const events: DeviceEvent[] = [
 const notes = ['Router counters are per SSID and LAN port, not per device.', 'Household total is approximate; counters may reset when the router restarts.'];
 const labels = new Map<string, string>();
 const mockToken = 'demo-local-session';
+// VITE_MOCK_SETUP=1 or ?mockSetup=1 starts the offline demo without an owner.
+let mockOwner: { username: string; password: string } | null = null;
+let mockSetupMode = false;
+function setupMode(url: URL) {
+  const requested = import.meta.env.VITE_MOCK_SETUP === '1' || url.searchParams.get('mockSetup') === '1' || window.location.search.includes('mockSetup=1');
+  if (requested !== mockSetupMode) { mockOwner = null; mockSetupMode = requested; }
+  return requested;
+}
 export function mockResponse(rawUrl: string, method = 'GET', body: Record<string, unknown> = {}): { status: number; body?: unknown } | null {
   const url = new URL(rawUrl, 'http://localhost');
   if (!url.pathname.startsWith('/api/')) return null;
-  if (url.pathname === '/api/auth/login' && method === 'POST') return body.username === 'demo' && body.password === 'demo' ? { status: 200, body: { token: mockToken, username: 'demo' } } : { status: 401, body: { status: 401, message: 'Invalid username or password' } };
-  if (url.pathname === '/api/auth/me') return { status: 200, body: { username: 'demo' } };
+  const setup = setupMode(url);
+  if (url.pathname === '/api/auth/setup-status') return { status: 200, body: { setupRequired: setup && !mockOwner } };
+  if (url.pathname === '/api/auth/setup' && method === 'POST') {
+    if (!setup || mockOwner) return { status: 409, body: { status: 409, message: 'Setup has already been completed' } };
+    if (!body.username || typeof body.password !== 'string' || body.password.length < 10) return { status: 400, body: { status: 400, message: 'Password must have at least 10 characters' } };
+    mockOwner = { username: String(body.username).trim().toLowerCase(), password: body.password };
+    return { status: 201, body: { username: mockOwner.username } };
+  }
+  if (url.pathname === '/api/auth/login' && method === 'POST') return (setup ? mockOwner?.username === body.username && mockOwner?.password === body.password : body.username === 'demo' && body.password === 'demo') ? { status: 200, body: { token: mockToken, username: setup ? mockOwner?.username : 'demo' } } : { status: 401, body: { status: 401, message: 'Invalid username or password' } };
+  if (url.pathname === '/api/auth/me') return { status: 200, body: { username: setup ? mockOwner?.username : 'demo' } };
   const deviceMatch = url.pathname.match(/^\/api\/devices\/([^/]+)\/(alias|trusted)$/);
   if (deviceMatch) {
     const device = devices.find(d => d.mac === decodeURIComponent(deviceMatch[1]));

@@ -25,6 +25,12 @@ class BootstrapAuthTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @Autowired MockMvc mvc;
 
+    @Test void bootstrapOwnerDisablesPublicSetupStatus() throws Exception {
+        mvc.perform(get("/api/auth/setup-status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.setupRequired").value(false))
+                .andExpect(jsonPath("$.username").doesNotExist());
+    }
+
     @Test void startupCreatesLowercaseOwnerAndClosesSetup() throws Exception {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"bootstrapowner\",\"password\":\"bootstrap-password-only-for-tests\"}"))

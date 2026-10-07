@@ -21,6 +21,13 @@ public class LoginLimiter {
         if (failures.size() < 5) return 0;
         return Math.max(1, Duration.between(clock.instant(), failures.peekFirst().plus(WINDOW)).toSeconds() + 1);
     }
+    /** Shared per-IP budget for public setup and setup-status requests. */
+    public synchronized long setupRetryAfter(String ip) {
+        ArrayDeque<Instant> requests = get("\u0001setup", ip);
+        if (requests.size() < 30) return 0;
+        return Math.max(1, Duration.between(clock.instant(), requests.peekFirst().plus(WINDOW)).toSeconds() + 1);
+    }
+    public synchronized void setupRequest(String ip) { get("\u0001setup", ip).addLast(clock.instant()); }
     public synchronized void fail(String username, String ip) { get(username, ip).addLast(clock.instant()); }
     public synchronized void success(String username, String ip) { attempts.remove(username + "\u0000" + ip); }
 

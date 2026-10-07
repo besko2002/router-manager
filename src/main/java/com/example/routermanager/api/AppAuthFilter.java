@@ -28,7 +28,8 @@ public class AppAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String path = request.getRequestURI();
         if (!path.startsWith("/api/") || ("POST".equals(request.getMethod()) &&
-                (path.equals("/api/auth/login") || path.equals("/api/auth/setup")))) {
+                (path.equals("/api/auth/login") || path.equals("/api/auth/setup"))) ||
+                ("GET".equals(request.getMethod()) && path.equals("/api/auth/setup-status"))) {
             chain.doFilter(request, response);
             return;
         }
