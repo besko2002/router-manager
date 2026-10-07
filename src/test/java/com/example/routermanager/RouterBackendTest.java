@@ -24,6 +24,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -127,8 +128,9 @@ class RouterBackendTest {
 
     @Test
     void retentionKeepsRollupsButRemovesOnlyOldRawReadings() {
-        Instant old = clock.instant().minusSeconds(20 * 86400L);
-        Instant recent = clock.instant().minusSeconds(86400L);
+        // PostgreSQL keeps microseconds; a Linux clock has nanoseconds, so truncate before comparing.
+        Instant old = clock.instant().minusSeconds(20 * 86400L).truncatedTo(ChronoUnit.MICROS);
+        Instant recent = clock.instant().minusSeconds(86400L).truncatedTo(ChronoUnit.MICROS);
         samples.save(CounterSampleEntity.of(old, CounterSourceType.SSID, "RETENTION_TEST", 100, 100, 1L));
         samples.save(CounterSampleEntity.of(recent, CounterSourceType.SSID, "RETENTION_TEST", 200, 200, 2L));
         rollups.rollUp(old, old.plusSeconds(1));
