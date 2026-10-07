@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: router-manager
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/router}
+    username: ${DB_USERNAME:router}
+    password: ${DB_PASSWORD:router}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: router-pool
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8092}
+  # Bound to loopback ON PURPOSE. This service holds the router's admin credentials and exposes
+  # every device in the house. Authentication does not make internet exposure safe; the router itself is
+  # not reachable from outside the LAN either.
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  admin:
+    username: ${APP_ADMIN_USERNAME:}
+    password: ${APP_ADMIN_PASSWORD:}
+  jwt:
+    # DEV ONLY: set APP_JWT_SECRET to a fresh 32+-byte secret outside local development.
+    secret: ${APP_JWT_SECRET:dev-only-insecure-secret-replace-before-use-123456789}
+    expiration: ${APP_JWT_EXPIRATION:PT12H}
+
+router:
+  url: ${ROUTER_URL:https://192.168.1.1}
+  username: ${ROUTER_USERNAME:}
+  # Never commit this. It comes from .env / the container environment and is never logged.
+  password: ${ROUTER_PASSWORD:}
+  # The H188A signs its own certificate; trusting it is scoped to the host in `router.url` only.
+  insecure-tls: ${ROUTER_INSECURE_TLS:true}
+  poll-interval: ${POLL_INTERVAL:60s}
+  # SAFETY: the router locks the account after a few failed logins. After a FAILED login no further
+  # attempt is made before this interval has passed, and a credential rejection additionally needs
+  # POST /api/admin/router/reset-auth.
+  min-relogin-interval: ${MIN_RELOGIN_INTERVAL:10m}
+  request-timeout: ${ROUTER_REQUEST_TIMEOUT:10s}
+  initial-backoff: 15s
+  max-backoff: 5m
+  poll-enabled: ${POLL_ENABLED:true}
+
+usage:
+  # Hours and days are cut in this zone, so "yesterday" means yesterday at home.
+  zone: ${TIMEZONE:Africa/Cairo}
+  # Raw counter samples are pruned after this many days; the hourly/daily rollups are kept forever.
+  sample-retention-days: ${SAMPLE_RETENTION_DAYS:14}
+  retention-cron: ${RETENTION_CRON:0 20 3 * * *}
+  # A delta larger than this many bytes per second of elapsed time is treated as garbage and
+  # dropped (2 GB/s — far above a 100 Mbit/s DSL line, so only broken readings hit it).
+  max-plausible-bytes-per-second: ${MAX_PLAUSIBLE_BPS:2000000000}
+  max-timeseries-points: 2000
+
+logging:
+  level:
+    com.example.routermanager: ${LOG_LEVEL_APP:INFO}

@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { Usage } from './Usage';
+import { Chart } from '../components/Chart';
+import { mockFetch, renderRoute } from '../test/helpers';
+import { mockResponse } from '../api/mock';
+import type { TimeSeries } from '../api/client';
+const urls = (fn: ReturnType<typeof mockFetch>) => fn.mock.calls.map(call => call[0]);
+describe('usage screen', () => {
+  it('shows approximate notice before loading', () => { mockFetch(); renderRoute(<Usage/>); expect(screen.getByText(/Approximate household usage/)).toBeInTheDocument(); });
+  it('lists server notes', async () => { mockFetch(); renderRoute(<Usage/>); expect(await screen.findByText(/counters may reset/)).toBeInTheDocument(); });
+  it('does not claim device traffic', () => { mockFetch(); renderRoute(<Usage/>); expect(screen.getByText(/router does not provide bytes per device/)).toBeInTheDocument(); });
+  it('requests hourly data for today', async () => { const fn = mockFetch(); renderRoute(<Usage/>); await screen.findByText('Breakdown'); expect(urls(fn).find(u => u.includes('/timeseries'))).toContain('granularity=hour'); });
+  it('requests daily data for 7 days', async () => { const fn = mockFetch(); renderRoute(<Usage/>); fireEvent.click(screen.getByRole('button', { name: '7 days' })); await waitFor(() => expect(urls(fn).some(u => u.includes('granularity=day'))).toBe(true)); });
+  it('requests daily data for 30 days', async () => { const fn = mockFetch(); renderRoute(<Usage/>); fireEvent.click(screen.getByRole('button', { name: '30 days' })); await waitFor(() => expect(urls(fn).some(u => u.includes('granularity=day'))).toBe(true)); });
+  it('requests custom dates', async () => { const fn = mockFetch(); renderRoute(<Usage/>); fireEvent.click(screen.getByRole('button', { name: 'Custom' })); fireEvent.change(screen.getByLabelText('From'), { target: { value: '2025-02-01' } }); fireEvent.change(screen.getByLabelText('To'), { target: { value: '2025-02-03' } }); await waitFor(() => expect(urls(fn).some(u => u.includes(`from=${encodeURIComponent(new Date('2025-02-01T00:00:00').toISOString())}`) && u.includes(`to=${encodeURIComponent(new Date('2025-02-03T23:59:59').toISOString())}`)), JSON.stringify(urls(fn))).toBe(true)); });
+  it('warns when custom date missing', () => { mockFetch(); renderRoute(<Usage/>); fireEvent.click(screen.getByRole('button', { name: 'Custom' })); expect(screen.getByText(/Choose a valid start/)).toBeInTheDocument(); });
+  it('switches to SSID', async () => { const fn = mockFetch(); renderRoute(<Usage/>); fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'ssid' } }); await waitFor(() => expect(urls(fn).some(u => u.includes('groupBy=ssid'))).toBe(true)); });
+  it('switches to port', async () => { const fn = mockFetch(); renderRoute(<Usage/>); fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'port' } }); await waitFor(() => expect(urls(fn).some(u => u.includes('groupBy=port'))).toBe(true)); });
+  it('shows summary values', async () => { mockFetch(); renderRoute(<Usage/>); expect(await screen.findByText('19.4 GB')).toBeInTheDocument(); });
+  it('shows breakdown groups', async () => { mockFetch(); renderRoute(<Usage/>); expect(await screen.findByText('LAN1')).toBeInTheDocument(); });
+});
+describe('chart', () => {
+  const data = mockResponse('/api/usage/timeseries?from=2025-01-01&to=2025-01-02')!.body as TimeSeries;
+  it('renders accessible SVG points', () => { renderRoute(<Chart data={data}/>); expect(screen.getByRole('img', { name: /Usage chart/ })).toBeInTheDocument(); expect(document.querySelectorAll('rect').length).toBeGreaterThan(0); });
+  it('includes accessible data table fallback', () => { renderRoute(<Chart data={data}/>); expect(screen.getByText('Accessible usage data table')).toBeInTheDocument(); expect(screen.getByRole('table')).toHaveTextContent('Household'); });
+  it('shows tooltip on point focus', () => { renderRoute(<Chart data={data}/>); fireEvent.focus(document.querySelector('rect')!); expect(screen.getByRole('status')).toHaveTextContent('down'); });
+  it('shows empty chart state', () => { renderRoute(<Chart data={{ granularity: 'hour', groupBy: 'total', series: [] }}/>); expect(screen.getByText(/No usage samples/)).toBeInTheDocument(); });
+  it('hides full table for compact sparkline', () => { renderRoute(<Chart data={data} compact/>); expect(screen.queryByRole('table')).not.toBeInTheDocument(); });
+});

@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: router
+      POSTGRES_USER: router
+      POSTGRES_PASSWORD: router
+    ports:
+      - "127.0.0.1:5438:5432"
+    volumes:
+      - router_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U router -d router"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  backend:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://postgres:5432/router
+      DB_USERNAME: router
+      DB_PASSWORD: router
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-insecure-secret-replace-before-use-123456789}
+      APP_JWT_EXPIRATION: ${APP_JWT_EXPIRATION:-PT12H}
+      ROUTER_URL: ${ROUTER_URL:-https://192.168.1.1}
+      ROUTER_USERNAME: ${ROUTER_USERNAME:-}
+      ROUTER_PASSWORD: ${ROUTER_PASSWORD:-}
+      POLL_INTERVAL: ${POLL_INTERVAL:-60s}
+      TIMEZONE: ${TIMEZONE:-Africa/Cairo}
+    ports:
+      - "127.0.0.1:8092:8092"
+volumes:
+  router_postgres:

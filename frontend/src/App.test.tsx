@@ -1,0 +1,10 @@
+import { expect, it } from 'vitest';
+import { mockFetch } from './test/helpers';
+import { TOKEN_KEY } from './api/client';
+import { screen } from '@testing-library/react';
+import { App } from './App';
+import { renderRoute } from './test/helpers';
+import { readFileSync } from 'node:fs';
+const styles = readFileSync('src/styles.css', 'utf8');
+it('renders a 404 page for authenticated visitors', async () => { localStorage.setItem(TOKEN_KEY, 'demo-local-session'); mockFetch(); renderRoute(<App/>, '/missing'); expect(await screen.findByText('Page not found')).toBeInTheDocument(); expect(screen.getByRole('link', { name: /Back to dashboard/ })).toHaveAttribute('href', '/'); });
+it('keeps reduced-motion support for animations and transitions', () => { expect(styles).toMatch(/prefers-reduced-motion:reduce/); expect(styles).toMatch(/animation-duration:\.01ms!important/); expect(styles).toMatch(/transition-duration:\.01ms!important/); });
